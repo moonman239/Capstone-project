@@ -48,14 +48,17 @@ for question in questions:
     assert isEnglish(question)
 #for answer in answers:
     #assert isEnglish(answer)
-# Get the ngrams.
-print("Getting the ngrams.")
 import n_gram
 # Make sure each question has the same length - the maximum.
 maxLenQs = max([len(question) for question in questions])
+questions = [question.ljust(maxLenQs) for question in questions]
 print("maximum length of questions:" + str(maxLenQs))
-questions = [question.ljust(maxLenQs) for question in question]
+print("Number of questions:" + str(len(questions)))
+# Get the ngrams.
+print("Getting the ngrams.")
 question_ngram = n_gram.ngramStrings(questions,2)
+print("Length of question ngrams array: " + str(len(question_ngram)))
+print("Number of ngrams",len(question_ngram[0]))
 print("Finished getting the ngrams.")
 X_list = np.array(question_ngram)
 print("X list size: " + str(X_list.size))
