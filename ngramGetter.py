@@ -13,7 +13,7 @@ json = json.loads(file.read().replace('\n', ''))
 data = json["data"]
 questions = []
 answers = []
-print("Getting data.")
+print("Parsing data.")
 import string
 def isEnglish(s):
     try:
@@ -41,6 +41,7 @@ for article in data:
                     questions.append(question)
                     answers.append(answer)
 #Assert that every character of every string is an English character.
+print("Running final assertions.")
 for question in questions:
     assert isEnglish(question)
 #for answer in answers:
@@ -48,10 +49,33 @@ for question in questions:
 import n_gram
 # Make sure each question has the same length - the maximum.
 maxLenQs = max([len(question) for question in questions])
-questions = [question.ljust(maxLenQs) for question in questions]
 print("maximum length of questions:" + str(maxLenQs))
+questions = [question.ljust(maxLenQs) for question in questions]
 print("Number of questions:" + str(len(questions)))
 # Get the ngrams.
 print("Getting the ngrams.")
-n_gram.saveNgrams(questions,2)
-print("Finished getting the ngrams.")
+import time
+from multiprocessing import Pool
+ngramPool = Pool(4)
+questionNgrams = []
+possNgrams = set()
+i = 0
+previousI = 0
+previousTime = time.time()
+for result in ngramPool.imap_unordered(n_gram.stringToNgrams,questions):
+    questionNgrams.append(result)
+    [possNgrams.add(ngram) for ngram in result]
+    # Estimate time remaining.
+    timeDiff = (time.time() - previousTime) % 60
+    if (timeDiff >= 10):
+        previousTime = time.time()
+        slope = timeDiff / (i - previousI)
+        timeRemaining = (len(questions) - i) * slope
+        print("Estimated time remaining: " + str(timeRemaining))
+        previousI = i
+    i += 1
+assert not all([string == '' for string in questionNgrams])
+print("Finished getting the n-grams.")
+print(questionNgrams)
+print(possNgrams)
+n_gram.saveNgrams(questionNgrams)
