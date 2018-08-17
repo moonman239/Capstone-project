@@ -58,13 +58,13 @@ import time
 from multiprocessing import Pool
 ngramPool = Pool(4)
 questionNgrams = []
-possNgrams = set()
 i = 0
 previousI = 0
 previousTime = time.time()
+#Test questions
+#questions = ["To whom do I owe this great pleasure","Who do I owe this great pleasure which is a great pleasure to","Who do I owe this great pleasure to"]
 for result in ngramPool.imap_unordered(n_gram.stringToNgrams,questions):
     questionNgrams.append(result)
-    [possNgrams.add(ngram) for ngram in result]
     # Estimate time remaining.
     timeDiff = (time.time() - previousTime) % 60
     if (timeDiff >= 10):
@@ -76,6 +76,25 @@ for result in ngramPool.imap_unordered(n_gram.stringToNgrams,questions):
     i += 1
 assert not all([string == '' for string in questionNgrams])
 print("Finished getting the n-grams.")
-print(questionNgrams)
-print(possNgrams)
-n_gram.saveNgrams(questionNgrams)
+print("Question n-grams: " + str(questionNgrams))
+print("Parsing the n-grams: ")
+from collections import Counter
+# Get N-gram vocabulary.
+ngramVocabulary = set()
+for question in questionNgrams:
+    for ngram in question:
+        ngramVocabulary.add(ngram)
+questionNgramRepresentations = []
+for question in questionNgrams:
+    # Count the number of times ngram from ngramVocabulary appears in question.
+    counts = []
+    for ngram in ngramVocabulary:
+        # Counters don't help here because there does not appear to be a way to get them to count
+        # the occurrences of the n-grams in the n-gram vocabulary.
+        count = question.count(ngram)
+        counts.append(count)
+        print(count)
+    questionNgramRepresentations.append(counts)
+# More test code
+#print("Question N-gram representations: " + str(questionNgramRepresentations))
+#n_gram.saveNgrams(questionNgrams)
