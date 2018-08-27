@@ -5,6 +5,7 @@ import json
 import sys
 print("Hello World!")
 import json
+import time
 # Load data and turn into N-grams
 #TODO: Extract vocabulary from JSON file
 # Iterate through all questions and answers, pulling out our inputs
@@ -56,7 +57,8 @@ print("Number of questions:" + str(len(questions)))
 print("Getting the ngrams.")
 import time
 from multiprocessing import Pool
-ngramPool = Pool(4)
+import os
+ngramPool = Pool(os.cpu_count() - 1)
 questionNgrams = []
 i = 0
 previousI = 0
@@ -68,15 +70,15 @@ for result in ngramPool.imap_unordered(n_gram.stringToNgrams,questions):
     # Estimate time remaining.
     timeDiff = (time.time() - previousTime) % 60
     if (timeDiff >= 10):
-        previousTime = time.time()
         slope = timeDiff / (i - previousI)
         timeRemaining = (len(questions) - i) * slope
         print("Estimated time remaining: " + str(timeRemaining))
+        previousTime = time.time()
         previousI = i
     i += 1
 assert not all([string == '' for string in questionNgrams])
 print("Finished getting the n-grams.")
-print("Question n-grams: " + str(questionNgrams))
+#print("Question n-grams: " + str(questionNgrams))
 print("Parsing the n-grams: ")
 from collections import Counter
 # Get N-gram vocabulary.
