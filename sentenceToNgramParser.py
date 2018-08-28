@@ -29,7 +29,7 @@ for article in data:
                 question = "".join([string for string in qas["question"] if string not in punctuation])
                 question = "".join([string for string in question if isEnglish(string)])
                 # Remove common words that probably won't affect the accuracy of the end result.
-                stop = ["The","the","A","a"]
+                stop = ["The ","the ","A"," a "]
                 for word in stop:
                     question = question.replace(word,"")
                 answer = qas["answers"][0]["text"]
@@ -75,4 +75,5 @@ for result in ngramPool.imap_unordered(n_gram.stringToNgrams,questions):
 print(questionNgrams[1:3])
 # Output the n-grams to a file.
 import pickle
-file = fopen("n-grams.txt","wb")
+file = open("n-grams.txt","wb")
+pickle.dump(questionNgrams,file)
