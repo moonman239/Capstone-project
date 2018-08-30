@@ -13,7 +13,6 @@ def saveSentences(skipgramSentences,isQuestions):
         ngram_position_id = 0
         for ngram in sentence:
             # Store ngram in sentence.
-            print("N-gram" + str(ngram))
             ngramId = ngramId + 1
             # If n-gram doesn't already exist in row, then insert it.
             results = conn.execute("select count(*) from skipgrams where sentence_id=? and positionId=?",(sentence_id,ngram_position_id))
@@ -35,7 +34,6 @@ def skipgrams(sentence):
      # Get the base word.
     for i in range(0,len(splitSentence)):
         word = splitSentence[i]
-        print(word)
         restOfSentence = splitSentence[i + 1:len(splitSentence)]
         wordSkipGramCombinations = [] # The combinations of skipgrams that can be generated with this word.
         for word_2 in restOfSentence:
@@ -43,4 +41,3 @@ def skipgrams(sentence):
             wordSkipGramCombinations.append(word + " " + word_2)
         [skipGrams.append(wordSkipGramCombination) for wordSkipGramCombination in wordSkipGramCombinations]
     return skipGrams
-print (skipgrams("I sell seashells by the seashore"))
