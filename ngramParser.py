@@ -44,8 +44,8 @@ print("Loading the n-grams.")
 import skipgramModule
 import multiprocessing
 ngramPool = multiprocessing.Pool(7)
-questionNgrams = ngramPool.imap(skipgramModule.skipgrams,questions)
-answerNgrams = ngramPool.imap(skipgramModule.skipgrams,answers)
+questionNgrams = ngramPool.map(skipgramModule.skipgrams,questions)
+answerNgrams = ngramPool.map(skipgramModule.skipgrams,answers)
 skipgramModule.saveSentences(questionNgrams,True)
 skipgramModule.saveSentences(answerNgrams,False)
 print("Getting the n-gram vocabulary.")

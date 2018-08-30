@@ -9,7 +9,6 @@ def saveSentences(skipgramSentences,isQuestions):
     nextNgramId = 0
     ngramId = 0
     for sentence in skipgramSentences:
-        print(sentence)
         ngram_position_id = 0
         for ngram in sentence:
             # Store ngram in sentence.
@@ -20,7 +19,6 @@ def saveSentences(skipgramSentences,isQuestions):
             for result in results:
                 if result[0] > 0:
                     ngramExists = True
-            #print("ngram",ngram)
             if (ngramExists == False):
                 conn.execute("insert into skipgrams values (\'" + str(sentence_id) + "\',\'" + ngram + "\',\'" + str(ngram_position_id) + "\',\'" + str(isQuestions) + "\')")
             ngram_position_id += 1
