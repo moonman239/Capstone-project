@@ -1,33 +1,35 @@
 from sqlite3 import connect,OperationalError
-import time
 conn = connect("ngrams.sqlite")
-try:
-    conn.execute("CREATE TABLE skipgrams (sentence_id integer,text text,positionId integer,question boolean,id integer)")
-except OperationalError as e:
-    print(e)
+import time
 def saveSentences(skipgramSentences,isQuestions):
     sentence_id = 0
-    nextNgramId = 0
-    ngramId = 0
+    nextid = 0
+    id = 0
     insertQuery = []
     previousTime = time.time()
     previousI = 0
     i = 0
+    tableName = ""
+    if isQuestions:
+        tableName = "questionNgrams"
+    else:
+        tableName = "answerNgrams"
     try:
-        conn.execute("create table temp (sentence_id integer,text text,positionId integer,question boolean,id integer)")
+        conn.execute("create table " + tableName + " (sentence_id integer,id integer,text varchar(10))")
     except OperationalError as e:
         print(e)
     print("hi man")
+    
     for sentence in skipgramSentences:
         ngram_position_id = 0
         for ngram in sentence:
             # Store ngram in sentence.
-            insertQuery.append("insert into temp values (\'" + str(sentence_id) + "\',\'" + ngram + "\',\'" + str(ngram_position_id) + "\',\'" + str(isQuestions) + "\'," + str(ngramId) + ");")
+            conn.execute("INSERT INTO " + tableName + " (sentence_id,id,text) SELECT " + str(sentence_id) + "," + str(id) + ", '" + str(ngram) + "' WHERE NOT EXISTS(SELECT 1 FROM " + tableName + " WHERE id = " + str(id) + " AND text = '" + str(ngram) + "');")
             ngram_position_id += 1
-            ngramId = ngramId + 1
+            id = id + 1
             currentTime = time.time()
             print(id)
-            if ((currentTime - previousTime) % 60 > 0):
+            if ((currentTime - previousTime) % 60 >= 1):
                 slope = ((currentTime - previousTime) % 60) / (id - previousI)
                 print("Estimated time remaining:" + str(slope * len(skipgramSentences)))
                 previousI += 1
@@ -36,8 +38,7 @@ def saveSentences(skipgramSentences,isQuestions):
     # Insert n-grams into permanent table if they don't already exist there.
     insertQuery = "".join(insertQuery)
     conn.execute(insertQuery)
-    conn.execute("insert into skipgrams select t.* from temp t left join skipgrams s on t.id = s.id where s.id is null")
-    conn.execute("drop table temp")
+    
     conn.commit()
 # Calculate skipgrams.
 # Expected output: Sentences as an array of skipgrams.
@@ -54,3 +55,11 @@ def skipgrams(sentence):
             wordSkipGramCombinations.append(word + " " + word_2)
         [skipGrams.append(wordSkipGramCombination) for wordSkipGramCombination in wordSkipGramCombinations]
     return skipGrams
+#question = "Do I sell seashells by the seashore"
+#answer = "Yes, I sell seashells by the seashore"
+#questionSkipgrams = skipgrams(question)
+#answerSkipgrams = skipgrams(answer)
+#print(questionSkipgrams)
+#print(answerSkipgrams)
+#saveSentences([questionSkipgrams],True)
+#saveSentences([answerSkipgrams],False)
