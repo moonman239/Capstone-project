@@ -1,5 +1,5 @@
 from sqlite3 import connect,OperationalError
-conn = connect("ngrams.sqlite")
+conn = connect("::memory::")
 import time
 def saveSentences(skipgramSentences,isQuestions):
     sentence_id = 0
@@ -50,3 +50,4 @@ def skipgrams(sentence):
             wordSkipGramCombinations.append(word + " " + word_2)
         [skipGrams.append(wordSkipGramCombination) for wordSkipGramCombination in wordSkipGramCombinations]
     return skipGrams
+
