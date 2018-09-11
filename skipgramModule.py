@@ -1,5 +1,5 @@
 from sqlite3 import connect,OperationalError
-conn = connect("::memory::")
+conn = connect("ngrams.sqlite")
 import time
 def saveSentences(skipgramSentences,isQuestions):
     sentence_id = 0
