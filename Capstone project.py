@@ -14,14 +14,7 @@ import json
 file = open("train-v1.1.json")
 json = json.loads(file.read().replace('\n', ''))
 data = json["data"]
-questions = []
-answers = []
 print("Hello")
-#Assert that every character of every string is an English character.
-for question in questions:
-    assert isEnglish(question)
-#for answer in answers:
-    #assert isEnglish(answer)
 print("Getting the one-hot encoded n-grams.")
 import sqlite3
 conn = sqlite3.connect("ngrams.sqlite")
