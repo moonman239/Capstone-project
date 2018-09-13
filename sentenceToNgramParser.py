@@ -45,8 +45,23 @@ import skipgramModule
 import multiprocessing
 ngramPool = multiprocessing.Pool(8)
 assert len(questions) > 0
-questionNgrams = ngramPool.map(skipgramModule.skipgrams,questions)
-answerNgrams = ngramPool.map(skipgramModule.skipgrams,answers)
+questionNgrams = []
+import time
+previousTime = time.time()
+for question in ngramPool.imap(skipgramModule.skipgrams,questions):
+    questionNgrams.append(question)
+    if (time.time() - previousTime >= 1):
+        print("Done!")
+        import sys
+        print(sys.getsizeof(questionNgrams))
+        previousTime = time.time()
+answerNgrams = []
+previousTime = time.time()
+for answer in ngramPool.imap(skipgramModule.skipgrams,answer):
+    answerNgrams.append(answer)
+    if (time.time() - previousTime >= 10):
+        print("Done!")
+        previousTime = time.time()
 assert len(questionNgrams) > 0
 print("Saving sentences.")
 skipgramModule.saveSentences(questionNgrams,True)
