@@ -12,13 +12,18 @@ vocabulary = set(vocabulary.flatten())
 questions_as_word_sequences = []
 answers_as_word_sequences = []
 print(vocabulary)
-lengthVocabulary = len(vocabulary)
+lenVocabulary = len(vocabulary)
 def oneHot(sentence):
-    return keras.preprocessing.text.one_hot(sentence,lengthVocabulary)
+    return keras.preprocessing.text.one_hot(sentence,lenVocabulary)
 skipgramFn = lambda sequence: keras.preprocessing.sequence.skipgrams(sequence,lenVocabulary)
-questions = list(map(oneHot,questions))
-answers = list(map(oneHot,answers))
+questions_onehot = list(map(oneHot,questions))
+answers_onehot = list(map(oneHot,answers))
 # How do I get questions to be just a list of numbers?
-print(questions)
-#print(answers)
+print(questions_onehot)
+print(answers_onehot)
+import numpy as np
+questionSkipgrams = list(map(skipgramFn,questions_onehot))
+answerSkipgrams = list(map(skipgramFn,answers_onehot))
+print(questionSkipgrams)
+print(answerSkipgrams)
 id = 0
