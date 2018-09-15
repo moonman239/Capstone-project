@@ -22,8 +22,12 @@ answers_onehot = list(map(oneHot,answers))
 print(questions_onehot)
 print(answers_onehot)
 import numpy as np
-questionSkipgrams = list(map(skipgramFn,questions_onehot))
-answerSkipgrams = list(map(skipgramFn,answers_onehot))
+questionSkipgrams = []
+answerSkipgrams = []
+for question in map(skipgramFn,questions_onehot):
+    questionSkipgrams.append(list(question))
+for answer in map(skipgramFn,answers_onehot):
+    answerSkipgrams.append(list(answer))
 print(questionSkipgrams)
 print(answerSkipgrams)
 id = 0
