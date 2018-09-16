@@ -1,6 +1,8 @@
 from sqlite3 import connect,OperationalError
 conn = connect("ngrams.sqlite")
 import time
+import keras.preprocessing.sequence
+import keras.preprocessing.text
 def saveSentences(skipgramSentences,isQuestions):
     sentence_id = 0
     nextid = 0
@@ -50,4 +52,23 @@ def skipgrams(sentence):
             wordSkipGramCombinations.append(word + " " + word_2)
         [skipGrams.append(wordSkipGramCombination) for wordSkipGramCombination in wordSkipGramCombinations]
     return skipGrams
+def oneHotQuestionsAndAnswers(questions,answers):
+    print("Encoding.")
+    _lenVocabulary = lenVocabulary(questions,answers)
+    def oneHot(sentence):
+        return keras.preprocessing.text.one_hot(sentence,_lenVocabulary)
+    skipgramFn = lambda sequence: keras.preprocessing.sequence.skipgrams(sequence,_lenVocabulary)
+    questions_onehot = list(map(oneHot,questions))
+    answers_onehot = list(map(oneHot,answers))
+    return (questions_onehot,answers_onehot)
+def lenVocabulary(questions,answers):
+    wordSequences = []
+    # This section returns each question and answer as a list of words.
+    # Each call to text_to_word_sequence generates an array of arrays, so we need to iterate through each list and
+    # add the subelements.
+    for questionWordSequences,answerWordSequences in zip(map(keras.preprocessing.text.text_to_word_sequence,questions),map(keras.preprocessing.text.text_to_word_sequence,answers)):
+        wordSequences.extend(questionWordSequences)
+        wordSequences.extend(answerWordSequences)
+    vocabulary = set(wordSequences)
+    return len(vocabulary)
 
