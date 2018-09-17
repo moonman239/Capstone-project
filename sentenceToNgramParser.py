@@ -1,5 +1,12 @@
 #Gets the n-grams and the vocabulary.
-def loadSentences():
+def isEnglish(s):
+    try:
+        s.encode(encoding='utf-8').decode('ascii')
+    except UnicodeDecodeError:
+        return False
+    else:
+        return True
+def loadParseSentences():
     import json
     import sys
     print("Hello World!")
@@ -34,17 +41,7 @@ def loadSentences():
                     if (answer != ""):
                         questions.append(question)
                         answers.append(answer)
-    return (questions,answers)
-def isEnglish(s):
-    try:
-        s.encode(encoding='utf-8').decode('ascii')
-    except UnicodeDecodeError:
-        return False
-    else:
-        return True
-def loadParseSentences():
-    questions,answers = loadSentences()
-    # By now, we have a list of questions and answers, each of which is a string.
+   # By now, we have a list of questions and answers, each of which is a string.
     print(answers[0])
     #print(questions_as_word_sequences[0])
     #print(answers_as_word_sequences[0])
