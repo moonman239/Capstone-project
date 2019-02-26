@@ -5,7 +5,7 @@ def parse(x):
     match_condn = r'\b([0-9])\b'
     replace_str = r'0\1'
     # Return a string.
-    dateFormats = ["%y-%b","%b-%y",]
+    dateFormats = ["%y-%b","%b-%y"]
     # Iterate through all known date formats, parsing them.
     for dateFormat in dateFormats:
         # If date has been parsed, return. Else, keep parsing.
