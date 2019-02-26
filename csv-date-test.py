@@ -11,7 +11,15 @@ def parse(x):
         # If date has been parsed, return. Else, keep parsing.
         try:
             zeroPaddedDateString = re.sub(match_condn, replace_str, x)
-            x = pd.datetime.strptime(zeroPaddedDateString,dateFormat).strftime("%B %Y")
+            date = pd.datetime.strptime(zeroPaddedDateString,dateFormat)
+            # If date contains day, include a day in the end result.
+            strftime = ""
+            if ("%d" in dateFormat):
+                strftime = "%B %d %Y"
+            # Else, include just the available information.
+            else:
+                strftime = "%B %Y"
+            x = date.strftime(strftime)
         except ValueError:
             continue
     return x
