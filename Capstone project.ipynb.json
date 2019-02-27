@@ -1,0 +1,543 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "    Natural language processing has been a topic of conversation since Alan Turing first designed a test that would involve a judge conversing with both a human and a machine and telling which one is the machine and which is the human. A machine is said to “pass” the test if the judge cannot tell the two apart. For years, the task of building a machine that passes this test has been – and continues to be - a very difficult task for computers and their programmers to accomplish. The main difficulty is due to all of the various rules and vocabularies we apply almost innately in our everyday conversations. For example, some words mean different things in different contexts.\n",
+    "    \n",
+    "\tWe can evaluate how well our models perform using questions that have already been answered by humans, by comparing these answers to the answers our machine gives. We can then compare the words and sentence structure of the machine’s answer to that of the human’s. For example, we could give the machine a score of 1 every time it uses a word in its answer as the human does, perhaps with the caveat that it only gets the point for words that succeed another matching word (or are the first word in the sentence.)\n",
+    "    \n",
+    "\tHowever, there are many ways to build a program that can try to understand and speak human language. One of the earliest applications of machine learning for this problem involved question classification. Researchers realized as far back as 1992 that in order to answer a question, a machine needed to be able to understand the constraints placed on a question. To do this, Drs. Xin Li and Dan Roth proposed a hierarchical classifier that would classify a question. (https://dl.acm.org/citation.cfm?id=1072378).\n",
+    "    \n",
+    "\tThe problem, of course, with this approach is that each possible question needs to have a classification. Furthermore, since our machine learning classifier needs to understand how the type of question affects the answer, it needs to be trained to understand the types of words (e.g noun, adjective), the sentence structures, etc. For example, for the question, “How does the human heart work?” it needs to first understand how to answer a question on how anything works. Only then can it answer the question of how the human heart works. \n",
+    "    \n",
+    "    What I propose is that instead of concerning ourselves with how a question is classified or the types of words in the question, or its sentence structure, we can instead train a machine to answer a question by classifying the question in terms of how it would be answered. This allows us to train our program on questions for which we may not have defined a classification. For example, to answer a question from our SQuAD dataset, the program wouldn’t necessarily learn that a question is related to an article, but that it is related to another question and to the answer we’re looking for.\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Defining our inputs and outputs"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "The first task in any machine learning setup is to define our inputs and outputs.\n",
+    "For this task, it is readily obvious that our questions should be inputs and our answers should be the outputs.\n",
+    "\n",
+    "However, in order for our bot to be able to formulate an answer,\n",
+    "any neural network we create to generate answers needs information from which it can pick out an answer.\n",
+    "\n",
+    "Therefore, we will use two neural networks. The first neural network's job will be to identify which article in the dataset best answers a given question. The second neural network's job will be to take as input both the question posed and the relevant article, and then output the portion of the article that answers the question.\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Setup"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    " Just to verify that everything's working."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "Using TensorFlow backend.\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Set up!\n"
+     ]
+    }
+   ],
+   "source": [
+    "import numpy as np\n",
+    "from scipy.sparse import csr_matrix\n",
+    "from keras.models import Sequential\n",
+    "from keras.layers import Dense,LSTM,Activation,InputLayer,Input,BatchNormalization\n",
+    "from keras.callbacks import ModelCheckpoint\n",
+    "from sklearn.feature_extraction.text import CountVectorizer\n",
+    "# Verify we are using GPU.\n",
+    "from tensorflow.python.client import device_lib\n",
+    "import sys\n",
+    "assert sys.version_info[0] >= 3\n",
+    "print(\"Set up!\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Load preprocessed data."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import scipy.sparse\n",
+    "# Load questions and article titles\n",
+    "X_1_train = scipy.sparse.load_npz(\"X_1_train.npz\")\n",
+    "X_1_cross_validation = scipy.sparse.load_npz(\"X_1_cross_validation.npz\")\n",
+    "Y_1_train = scipy.sparse.load_npz(\"Y_1_train.npz\")\n",
+    "Y_1_cross_validation = scipy.sparse.load_npz(\"Y_1_cross_validation.npz\")\n",
+    "dev_questions = scipy.sparse.load_npz(\"dev_questions.npz\")\n",
+    "dev_articleTitles = scipy.sparse.load_npz(\"dev_articleTitles.npz\")\n",
+    "# Load questions, article content, and answers\n",
+    "X_2_train = scipy.sparse.load_npz(\"X_2_train.npz\") \n",
+    "X_2_cross_validation = scipy.sparse.load_npz(\"X_2_cross_validation.npz\")\n",
+    "Y_2_train = scipy.sparse.load_npz(\"Y_2_train.npz\")\n",
+    "Y_2_cross_validation = scipy.sparse.load_npz(\"Y_2_cross_validation.npz\")\n",
+    "X_2_dev = scipy.sparse.load_npz(\"X_2_dev.npz\")\n",
+    "dev_answers = scipy.sparse.load_npz(\"dev_answers.npz\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "anyIsnan = False\n",
+    "for array in X_2_train:\n",
+    "    isnan = np.isnan(array)\n",
+    "    anyIsnan = np.any(isnan)\n",
+    "    if anyIsnan == True:\n",
+    "        break\n",
+    "if anyIsnan:\n",
+    "    print(\"WARNING: At least one weight is NaN.\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Batch generator"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Because the number of features is so large, we need to use a batch generator."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import scipy.sparse\n",
+    "import numpy as np\n",
+    "def nn_batch_generator(X_data, y_data, number_of_batches):\n",
+    "    indices = np.arange(0,X_data.shape[0])\n",
+    "    assert X_data.shape[0] == y_data.shape[0]\n",
+    "    samples_per_epoch = X_data.shape[0] # Number of samples per Keras epoch.\n",
+    "    batch_size = int(samples_per_epoch / number_of_batches) # Number of rows in a batch.\n",
+    "    counter=0\n",
+    "    X_data = X_data.toarray()\n",
+    "    y_data = y_data.toarray()\n",
+    "    while 1:\n",
+    "        # Randomly select indices to fill the batch.\n",
+    "        batch_indices = np.random.choice(indices,size=number_of_batches,replace=False)\n",
+    "        # Get X data.\n",
+    "        batch_X = X_data[batch_indices]\n",
+    "        # Get Y data.\n",
+    "        batch_Y = y_data[batch_indices]\n",
+    "        yield batch_X,batch_Y\n",
+    "#for batch_x,batch_y in nn_batch_generator(scipy.sparse.csr_matrix([[1,2,3],[4,5,6]]),scipy.sparse.csr_matrix([[7,8,9],[10,11,12]]),2):\n",
+    "    #print(batch_x)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## First neural network"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "This is a neural network that takes a question and outputs an article title.\n",
+    "Note for future reference: It may be a good idea to build a neural network that can also parse the content and thereby decide how relevant an article title is."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "7\n",
+      "outputDims 15625\n",
+      "outputDims 3125\n",
+      "outputDims 625\n",
+      "outputDims 125\n",
+      "outputDims 25\n",
+      "outputDims 5\n",
+      "_________________________________________________________________\n",
+      "Layer (type)                 Output Shape              Param #   \n",
+      "=================================================================\n",
+      "dense_1 (Dense)              (None, 3)                 1007823   \n",
+      "_________________________________________________________________\n",
+      "batch_normalization_1 (Batch (None, 3)                 12        \n",
+      "_________________________________________________________________\n",
+      "dense_2 (Dense)              (None, 15625)             62500     \n",
+      "_________________________________________________________________\n",
+      "dense_3 (Dense)              (None, 3125)              48831250  \n",
+      "_________________________________________________________________\n",
+      "dense_4 (Dense)              (None, 625)               1953750   \n",
+      "_________________________________________________________________\n",
+      "dense_5 (Dense)              (None, 125)               78250     \n",
+      "_________________________________________________________________\n",
+      "dense_6 (Dense)              (None, 25)                3150      \n",
+      "_________________________________________________________________\n",
+      "dense_7 (Dense)              (None, 5)                 130       \n",
+      "_________________________________________________________________\n",
+      "dense_8 (Dense)              (None, 8)                 48        \n",
+      "_________________________________________________________________\n",
+      "activation_1 (Activation)    (None, 8)                 0         \n",
+      "=================================================================\n",
+      "Total params: 51,936,913\n",
+      "Trainable params: 51,936,907\n",
+      "Non-trainable params: 6\n",
+      "_________________________________________________________________\n"
+     ]
+    }
+   ],
+   "source": [
+    "questions_article_model = Sequential()\n",
+    "from math import log,pow\n",
+    "base = 5\n",
+    "function = lambda x: 5^x\n",
+    "inputShape_first = X_1_train.shape[1:]\n",
+    "article_titles_shape = Y_1_train.shape[1:]\n",
+    "numberOfLayers = int(log(inputShape_first[0],5))\n",
+    "print(numberOfLayers)\n",
+    "questions_article_model.add(Dense(5^(numberOfLayers - 1),input_shape=inputShape_first))\n",
+    "questions_article_model.add(BatchNormalization())\n",
+    "for i in reversed(range(1,numberOfLayers)):\n",
+    "    outputDims = 5**i\n",
+    "    print(\"outputDims\",outputDims)\n",
+    "    questions_article_model.add(Dense(outputDims))\n",
+    "questions_article_model.add(Dense(article_titles_shape[0]))\n",
+    "questions_article_model.add(Activation(\"sigmoid\"))\n",
+    "questions_article_model.summary()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "questions_article_model.compile(\"adam\",\"categorical_crossentropy\",metrics=['accuracy'])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 20,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "\n",
+    "checkpoint = ModelCheckpoint('model_1-best.h5', verbose=1, monitor='val_acc',save_best_only=True,mode='auto') "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 21,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Epoch 1/19\n",
+      "328/328 [==============================] - 308s 939ms/step - loss: 2.2660e-09 - acc: 0.9909 - val_loss: 2.0032e-09 - val_acc: 0.9915\n",
+      "\n",
+      "Epoch 00001: val_acc improved from -inf to 0.99151, saving model to model_1-best.h5\n",
+      "Epoch 2/19\n",
+      "  4/328 [..............................] - ETA: 4:19 - loss: 2.1807e-09 - acc: 0.9909"
+     ]
+    },
+    {
+     "ename": "KeyboardInterrupt",
+     "evalue": "",
+     "output_type": "error",
+     "traceback": [
+      "\u001b[0;31m---------------------------------------------------------------------------\u001b[0m",
+      "\u001b[0;31mKeyboardInterrupt\u001b[0m                         Traceback (most recent call last)",
+      "\u001b[0;32m<ipython-input-21-0de63c7ed679>\u001b[0m in \u001b[0;36m<module>\u001b[0;34m()\u001b[0m\n\u001b[1;32m      1\u001b[0m \u001b[0mbatch_size\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0;36m200\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m      2\u001b[0m \u001b[0msteps_per_epoch\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mint\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mX_1_train\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mshape\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0;36m0\u001b[0m\u001b[0;34m]\u001b[0m \u001b[0;34m/\u001b[0m \u001b[0mbatch_size\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m----> 3\u001b[0;31m \u001b[0mquestions_article_model\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mfit_generator\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mnn_batch_generator\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mX_1_train\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0mY_1_train\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0msteps_per_epoch\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0mepochs\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;36m19\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0mvalidation_data\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mX_1_cross_validation\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0mY_1_cross_validation\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0mcallbacks\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;34m[\u001b[0m\u001b[0mcheckpoint\u001b[0m\u001b[0;34m]\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0msteps_per_epoch\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0msteps_per_epoch\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0mverbose\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;32mTrue\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m",
+      "\u001b[0;32m/usr/local/lib64/python3.4/site-packages/keras/legacy/interfaces.py\u001b[0m in \u001b[0;36mwrapper\u001b[0;34m(*args, **kwargs)\u001b[0m\n\u001b[1;32m     89\u001b[0m                 warnings.warn('Update your `' + object_name + '` call to the ' +\n\u001b[1;32m     90\u001b[0m                               'Keras 2 API: ' + signature, stacklevel=2)\n\u001b[0;32m---> 91\u001b[0;31m             \u001b[0;32mreturn\u001b[0m \u001b[0mfunc\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m*\u001b[0m\u001b[0margs\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0;34m**\u001b[0m\u001b[0mkwargs\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m     92\u001b[0m         \u001b[0mwrapper\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_original_function\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mfunc\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m     93\u001b[0m         \u001b[0;32mreturn\u001b[0m \u001b[0mwrapper\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+      "\u001b[0;32m/usr/local/lib64/python3.4/site-packages/keras/engine/training.py\u001b[0m in \u001b[0;36mfit_generator\u001b[0;34m(self, generator, steps_per_epoch, epochs, verbose, callbacks, validation_data, validation_steps, class_weight, max_queue_size, workers, use_multiprocessing, shuffle, initial_epoch)\u001b[0m\n\u001b[1;32m   1416\u001b[0m             \u001b[0muse_multiprocessing\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0muse_multiprocessing\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   1417\u001b[0m             \u001b[0mshuffle\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0mshuffle\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m-> 1418\u001b[0;31m             initial_epoch=initial_epoch)\n\u001b[0m\u001b[1;32m   1419\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   1420\u001b[0m     \u001b[0;34m@\u001b[0m\u001b[0minterfaces\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mlegacy_generator_methods_support\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+      "\u001b[0;32m/usr/local/lib64/python3.4/site-packages/keras/engine/training_generator.py\u001b[0m in \u001b[0;36mfit_generator\u001b[0;34m(model, generator, steps_per_epoch, epochs, verbose, callbacks, validation_data, validation_steps, class_weight, max_queue_size, workers, use_multiprocessing, shuffle, initial_epoch)\u001b[0m\n\u001b[1;32m    215\u001b[0m                 outs = model.train_on_batch(x, y,\n\u001b[1;32m    216\u001b[0m                                             \u001b[0msample_weight\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0msample_weight\u001b[0m\u001b[0;34m,\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m--> 217\u001b[0;31m                                             class_weight=class_weight)\n\u001b[0m\u001b[1;32m    218\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    219\u001b[0m                 \u001b[0mouts\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mto_list\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mouts\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+      "\u001b[0;32m/usr/local/lib64/python3.4/site-packages/keras/engine/training.py\u001b[0m in \u001b[0;36mtrain_on_batch\u001b[0;34m(self, x, y, sample_weight, class_weight)\u001b[0m\n\u001b[1;32m   1215\u001b[0m             \u001b[0mins\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mx\u001b[0m \u001b[0;34m+\u001b[0m \u001b[0my\u001b[0m \u001b[0;34m+\u001b[0m \u001b[0msample_weights\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   1216\u001b[0m         \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_make_train_function\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m-> 1217\u001b[0;31m         \u001b[0moutputs\u001b[0m \u001b[0;34m=\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mtrain_function\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mins\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m   1218\u001b[0m         \u001b[0;32mreturn\u001b[0m \u001b[0munpack_singleton\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0moutputs\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   1219\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n",
+      "\u001b[0;32m/usr/local/lib64/python3.4/site-packages/keras/backend/tensorflow_backend.py\u001b[0m in \u001b[0;36m__call__\u001b[0;34m(self, inputs)\u001b[0m\n\u001b[1;32m   2713\u001b[0m                 \u001b[0;32mreturn\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_legacy_call\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0minputs\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   2714\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0;32m-> 2715\u001b[0;31m             \u001b[0;32mreturn\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0m_call\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0minputs\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m   2716\u001b[0m         \u001b[0;32melse\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   2717\u001b[0m             \u001b[0;32mif\u001b[0m \u001b[0mpy_any\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mis_tensor\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mx\u001b[0m\u001b[0;34m)\u001b[0m \u001b[0;32mfor\u001b[0m \u001b[0mx\u001b[0m \u001b[0;32min\u001b[0m \u001b[0minputs\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+      "\u001b[0;32m/usr/local/lib64/python3.4/site-packages/keras/backend/tensorflow_backend.py\u001b[0m in \u001b[0;36m_call\u001b[0;34m(self, inputs)\u001b[0m\n\u001b[1;32m   2653\u001b[0m                 array_vals.append(\n\u001b[1;32m   2654\u001b[0m                     np.asarray(value,\n\u001b[0;32m-> 2655\u001b[0;31m                                dtype=tf.as_dtype(tensor.dtype).as_numpy_dtype))\n\u001b[0m\u001b[1;32m   2656\u001b[0m         \u001b[0;32mif\u001b[0m \u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mfeed_dict\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m   2657\u001b[0m             \u001b[0;32mfor\u001b[0m \u001b[0mkey\u001b[0m \u001b[0;32min\u001b[0m \u001b[0msorted\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0mself\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mfeed_dict\u001b[0m\u001b[0;34m.\u001b[0m\u001b[0mkeys\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m:\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n",
+      "\u001b[0;32m/usr/local/lib64/python3.4/site-packages/numpy/core/numeric.py\u001b[0m in \u001b[0;36masarray\u001b[0;34m(a, dtype, order)\u001b[0m\n\u001b[1;32m    499\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    500\u001b[0m     \"\"\"\n\u001b[0;32m--> 501\u001b[0;31m     \u001b[0;32mreturn\u001b[0m \u001b[0marray\u001b[0m\u001b[0;34m(\u001b[0m\u001b[0ma\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mdtype\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0mcopy\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0;32mFalse\u001b[0m\u001b[0;34m,\u001b[0m \u001b[0morder\u001b[0m\u001b[0;34m=\u001b[0m\u001b[0morder\u001b[0m\u001b[0;34m)\u001b[0m\u001b[0;34m\u001b[0m\u001b[0m\n\u001b[0m\u001b[1;32m    502\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n\u001b[1;32m    503\u001b[0m \u001b[0;34m\u001b[0m\u001b[0m\n",
+      "\u001b[0;31mKeyboardInterrupt\u001b[0m: "
+     ]
+    }
+   ],
+   "source": [
+    "batch_size = 200\n",
+    "steps_per_epoch = int(X_1_train.shape[0] / batch_size)\n",
+    "questions_article_model.fit_generator(nn_batch_generator(X_1_train,Y_1_train,steps_per_epoch),epochs=19,validation_data=(X_1_cross_validation,Y_1_cross_validation),callbacks=[checkpoint],steps_per_epoch=steps_per_epoch,verbose=True)\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 22,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "WARNING: At least one weight is NaN.\n"
+     ]
+    }
+   ],
+   "source": [
+    "#print(\"Weights: \",questions_article_model.get_weights())\n",
+    "modelWeights = model_1.get_weights()\n",
+    "anyIsnan = False\n",
+    "for array in modelWeights:\n",
+    "    isnan = np.isnan(array)\n",
+    "    anyIsnan = np.any(isnan)\n",
+    "    if anyIsnan == True:\n",
+    "        break\n",
+    "if anyIsnan:\n",
+    "    print(\"WARNING: At least one weight is NaN.\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Load the model with the best weight."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 23,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Model ready\n",
+      "WARNING: At least one weight is NaN.\n"
+     ]
+    }
+   ],
+   "source": [
+    "from keras.models import load_model\n",
+    "model_1 = load_model(\"model_1-best.h5\")\n",
+    "print(\"Model ready\")\n",
+    "modelWeights = model_1.get_weights()\n",
+    "anyIsnan = False\n",
+    "for array in modelWeights:\n",
+    "    isnan = np.isnan(array)\n",
+    "    anyIsnan = np.any(isnan)\n",
+    "    if anyIsnan == True:\n",
+    "        break\n",
+    "if anyIsnan:\n",
+    "    print(\"WARNING: At least one weight is NaN.\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Test it against the dev set."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "87599/87599 [==============================] - 235s 3ms/step\n",
+      "[2.1447032850763e-09, 0.9912213609744404]\n"
+     ]
+    }
+   ],
+   "source": [
+    "import numpy as np\n",
+    "print(model_1.evaluate(x=dev_questions,y=dev_articleTitles))\n",
+    "predictions = model_1.predict(dev_questions)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Second neural network - using Dense layers"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "This neural network is used to generate answers from the questions and articles. It works by first reading the relevant article and using the question to find the answer."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#Build the neural network.\n",
+    "from math import log\n",
+    "answers_network = Sequential()\n",
+    "inputShape_second = X_2_train.shape[1]\n",
+    "print(inputShape_second)\n",
+    "answers_shape = Y_2_train.shape\n",
+    "print(answers_shape)\n",
+    "numberOfLayers = int(log(inputShape_second,5))\n",
+    "print(numberOfLayers)\n",
+    "answers_network.add(Dense(5^(numberOfLayers - 1),input_shape=(inputShape_second,)))\n",
+    "answers_network.add(BatchNormalization())\n",
+    "for i in reversed(range(1,numberOfLayers)):\n",
+    "    outputDims = 5**i\n",
+    "    print(\"outputDims\",outputDims)\n",
+    "    answers_network.add(Dense(outputDims))\n",
+    "answers_network.add(Dense(32))\n",
+    "answers_network.add(Dense(answers_shape[1]))\n",
+    "answers_network.add(Activation(\"sigmoid\"))\n",
+    "answers_network.summary()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "answers_network.compile(\"adam\",\"categorical_crossentropy\",metrics=['accuracy'])"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Train the neural network."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "answers_network_checkpoint = ModelCheckpoint('answers_network-best.h5', verbose=1, monitor='val_acc',save_best_only=True, mode='auto') "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "batch_size = 200\n",
+    "from scipy.sparse import csr_matrix\n",
+    "Y_2_train = csr_matrix(Y_2_train)\n",
+    "steps_per_epoch = int(X_2_train.shape[0] / batch_size)\n",
+    "answers_network.fit_generator(nn_batch_generator(X_2_train,Y_2_train,steps_per_epoch),epochs=7,validation_data=(X_2_cross_validation,Y_2_cross_validation),callbacks=[answers_network_checkpoint],steps_per_epoch=steps_per_epoch,verbose=True)\n",
+    "#print(\"Weights: \",questions_article_model.get_weights())"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Loading the model with best fit."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "answers_network.load_weights('answers_network-best.h5')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "batch_size = 200\n",
+    "steps = int(X_2_train.shape[0] / batch_size)\n",
+    "print(X_2_dev.shape)\n",
+    "nn_generator = nn_batch_generator(X_2_dev,dev_answers,batch_size)\n",
+    "answers_network.evaluate(X_2_dev.toarray(),dev_answers.toarray(),batch_size=batch_size)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.4.3"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
