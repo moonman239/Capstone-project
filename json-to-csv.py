@@ -1,10 +1,10 @@
 # Clean up the JSON file and save it to a CSV file.
 import json
 import pandas as pd
-import json
 import re
 import string
-import pandas as pd
+from unidecode import unidecode
+# If problem, test this
 def parse(x):
     import re
     match_condn = r'\b([0-9])\b'
@@ -82,8 +82,11 @@ def readFile(filename):
         # Prune the dataframe.
         # NOTE: Answer_start column may end up being useful.
         qas = qas.drop(labels=["id_x","id_y","answer_id","paragraphID","id"],axis=1)
-        # Remove punctuation from all text columns.
+        # Remove punctuation, foreign characters, and newline characters. from all text columns.
+        # Possible TODO: lowercase
         qas["title"] = qas['title'].str.replace('_',' ')
+        qas["answer_text"] = qas["answer_text"].str.replace("\n "," ")
+        qas["context"] = qas["context"].str.replace("\n"," ")
         qas["title"] = qas['title'].str.replace('[{}]'.format(string.punctuation), '')
         qas["question"] = qas['question'].str.replace('[{}]'.format(string.punctuation), '')
         qas["context"] = qas['context'].str.replace('[{}]'.format(string.punctuation), '')
@@ -91,6 +94,9 @@ def readFile(filename):
         print("Parsing dates to consistent format")
         qas["answer_text"] = qas["answer_text"].apply(parse)
         qas["context"] = qas["context"].apply(parse)
+        qas["title"] = qas['title'].apply(unidecode)
+        qas["context"] = qas["context"].apply(unidecode)
+        qas["answer_text"] = qas["answer_text"].apply(unidecode)
         return qas
 trainingData = readFile("train-v1.1.json")
 print(trainingData.head(5))
